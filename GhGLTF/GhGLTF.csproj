@@ -6,7 +6,7 @@
     <Version>1.0</Version>
     <Title>GhGLTFExporter</Title>
     <Description>Description of GhGLTFExporter</Description>
-    <ReleaseVersion>1.0.1</ReleaseVersion>
+    <ReleaseVersion>1.0.2</ReleaseVersion>
   </PropertyGroup>
   
   <ItemGroup>
@@ -20,15 +20,15 @@
   <ItemGroup>
     <Reference Include="System.Windows.Forms" />
     <Reference Include="GH_IO">
-      <HintPath>..\..\..\..\..\..\Applications\RhinoWIP.app\Contents\Frameworks\RhCore.framework\Versions\A\Resources\ManagedPlugIns\GrasshopperPlugin.rhp\GH_IO.dll</HintPath>
-      <Private>False</Private>
-    </Reference>
-    <Reference Include="RhinoCommon">
-      <HintPath>..\..\..\..\..\..\Applications\RhinoWIP.app\Contents\Frameworks\RhCore.framework\Versions\A\Resources\RhinoCommon.dll</HintPath>
+      <HintPath>..\..\..\..\..\..\Applications\Rhinoceros.app\Contents\Frameworks\RhCore.framework\Versions\A\Resources\ManagedPlugIns\GrasshopperPlugin.rhp\GH_IO.dll</HintPath>
       <Private>False</Private>
     </Reference>
     <Reference Include="Grasshopper">
-      <HintPath>..\..\..\..\..\..\Applications\RhinoWIP.app\Contents\Frameworks\RhCore.framework\Versions\A\Resources\ManagedPlugIns\GrasshopperPlugin.rhp\Grasshopper.dll</HintPath>
+      <HintPath>..\..\..\..\..\..\Applications\Rhinoceros.app\Contents\Frameworks\RhCore.framework\Versions\A\Resources\ManagedPlugIns\GrasshopperPlugin.rhp\Grasshopper.dll</HintPath>
+      <Private>False</Private>
+    </Reference>
+    <Reference Include="RhinoCommon">
+      <HintPath>..\..\..\..\..\..\Applications\Rhinoceros.app\Contents\Frameworks\RhCore.framework\Versions\A\Resources\RhinoCommon.dll</HintPath>
       <Private>False</Private>
     </Reference>
   </ItemGroup>

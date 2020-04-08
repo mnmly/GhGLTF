@@ -37,6 +37,12 @@ namespace MNML
                         String materialName,
                         float[] vertices, int numVertices,
                         bool _flipAxis);
+        [DllImport("tinygltf")]
+        static extern void tinygltfAddLineLoop(IntPtr instance,
+                String name,
+                String materialName,
+                float[] vertices, int numVertices,
+                bool _flipAxis);
         IntPtr instance;
         WebSocket socket = null;
         Debouncer debouncer = new Debouncer(TimeSpan.FromMilliseconds(200));
@@ -156,6 +162,7 @@ namespace MNML
                     else if (geometries[j] is GH_Curve)
                     {
                         var curve = (geometries[j] as GH_Curve).Value;
+                        
                         var length = curve.GetLength();
                         var minimumLength = length * tolerance * 100.0 * resoltuionFactor;
                         var maximumLength = length;
@@ -171,9 +178,14 @@ namespace MNML
                             vertices.Add((float)p.Z);
                         }
 
-                        tinygltfAddLine(instance, name,
-                            materialName,
-                            vertices.ToArray(), vertices.Count, flip);
+                        if (curve.IsClosed)
+                        {
+                            tinygltfAddLineLoop(instance, name, materialName, vertices.ToArray(), vertices.Count, flip);
+                        } else
+                        {
+                            tinygltfAddLine(instance, name, materialName, vertices.ToArray(), vertices.Count, flip);
+                        }
+
                     } else if (geometries[j] is GH_Point)
                     {
                         pointName = name;
