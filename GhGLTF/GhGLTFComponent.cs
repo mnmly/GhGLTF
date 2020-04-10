@@ -1,4 +1,5 @@
 using System;
+using System.Linq;
 using System.Collections.Generic;
 using System.Runtime.InteropServices;
 using Grasshopper;
@@ -107,7 +108,6 @@ namespace MNML
             }
 
 
-
             Action action = () =>
             {
                 var _model = SharpGLTF.Schema2.ModelRoot.CreateModel();
@@ -132,6 +132,24 @@ namespace MNML
                         var normals = mesh.Normals.ToFloatArray();
                         var faces = mesh.Faces.ToIntArray(true);
 
+                        var vertices = mesh.Vertices.ToFloatArray();
+                        if (flip)
+                        {
+                            for (var n = 0; n < vertices.Length / 3; n++)
+                            {
+                                var tmpY = vertices[n * 3 + 1];
+                                vertices[n * 3 + 1] = vertices[n * 3 + 2];
+                                vertices[n * 3 + 2] = -tmpY;
+                            }
+                            for (var n = 0; n < normals.Length / 3; n++)
+                            {
+                                var tmpY = normals[n * 3 + 1];
+                                normals[n * 3 + 1] = normals[n * 3 + 2];
+                                normals[n * 3 + 2] = -tmpY;
+                            }
+                        }
+
+
                         var _node = _scene.CreateNode(name);
                         var _mesh = _model.CreateMesh();
                         var _mat = _model.CreateMaterial(materialName);
@@ -150,7 +168,7 @@ namespace MNML
                             switch (i)
                             {
                                 case 0: System.Buffer.BlockCopy(faces, 0, bytes, 0, count); break;
-                                case 1: System.Buffer.BlockCopy(mesh.Vertices.ToFloatArray(), 0, bytes, 0, count); break;
+                                case 1: System.Buffer.BlockCopy(vertices, 0, bytes, 0, count); break;
                                 case 2: System.Buffer.BlockCopy(uvs, 0, bytes, 0, count); break;
                                 case 3: System.Buffer.BlockCopy(normals, 0, bytes, 0, count); break;
                             }
@@ -191,8 +209,8 @@ namespace MNML
                         {
                             var p = polyline.Point(i);
                             vertices.Add((float)p.X);
-                            vertices.Add((float)p.Y);
-                            vertices.Add((float)p.Z);
+                            vertices.Add(flip ? (float)p.Z : (float)p.Y);
+                            vertices.Add(flip ? -(float)p.Y :(float)p.Z);
                         }
 
                         var _node = _scene.CreateNode(name);
@@ -223,8 +241,8 @@ namespace MNML
                         pointName = name;
                         var p = (geometries[j] as GH_Point).Value;
                         points.Add((float)p.X);
-                        points.Add((float)p.Y);
-                        points.Add((float)p.Z);
+                        points.Add(flip ? (float)p.Z : (float)p.Y);
+                        points.Add(flip ? -(float)p.Y : (float)p.Z);
                     }
                 }
                 if (points.Count > 0)
@@ -265,14 +283,14 @@ namespace MNML
                 {
                     if (payloadString == null)
                     {
-                        payloadString = "{\"action\": \"broadcast\", \"data\": \"" + path + "\"}";
+                        payloadString = String.Format("{{\"action\":\"broadcast\",\"data\": \"{0}\"}}", path);
                     }
                     socket.Send(payloadString);
                 }
-            };
-            //action();
-            // Finally assign the spiral to the output parameter.
-            debouncer.Debounce(action);
+        };
+        //action();
+        // Finally assign the spiral to the output parameter.
+        debouncer.Debounce(action);
         }
 
 
