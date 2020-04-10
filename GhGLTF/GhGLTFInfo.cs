@@ -10,7 +10,7 @@ namespace MNML
         public override string Name => "GhGLTF Info";
 
         //Return a 24x24 pixel bitmap to represent this GHA library.
-        public override Bitmap Icon => null;
+        //public override Bitmap Icon => null;
 
         //Return a short string describing the purpose of this GHA library.
         public override string Description => "";

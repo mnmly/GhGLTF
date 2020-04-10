@@ -1,49 +1,27 @@
 using System;
 using System.Collections.Generic;
 using System.Runtime.InteropServices;
-using System.Windows.Forms;
 using Grasshopper;
 using Grasshopper.Kernel;
 using Grasshopper.Kernel.Types;
 using Rhino.Geometry;
 using WebSocketSharp;
-using Newtonsoft.Json;
+using SharpGLTF;
+using SharpGLTF.Scenes;
+using SharpGLTF.Geometry;
+using SharpGLTF.Geometry.VertexTypes;
+using SharpGLTF.Schema2;
+using SharpGLTF.IO;
+using System.IO;
+
+using BYTES = System.ArraySegment<byte>;
+using Buffer = System.Buffer;
 
 namespace MNML
 {
     public class GhGLTFComponent : GH_Component
     {
 
-        [DllImport("tinygltf")] static extern IntPtr tinygltfCreateModel();
-        [DllImport("tinygltf")] static extern void tinygltfSave(IntPtr instance, String filepath,bool useStream,
-                                                               bool embedImages, bool embedBuffers,
-                                                               bool prettyPrint, bool writeBinary );
-        [DllImport("tinygltf")] static extern void tinygltfAddMesh(IntPtr instance,
-                                        String name,
-                                        String materialName,
-                                        float[] vertices, int numVertices,
-                                        float[] normals, int numNormals,
-                                        float[] uvs, int numUVs,
-                                        int[] faces, int numFaces, bool _flipAxis);
-        [DllImport("tinygltf")]
-        static extern void tinygltfAddPoints(IntPtr instance,
-                                String name,
-                                String materialName,
-                                float[] vertices, int numVertices,
-                                bool _flipAxis);
-        [DllImport("tinygltf")]
-        static extern void tinygltfAddLine(IntPtr instance,
-                        String name,
-                        String materialName,
-                        float[] vertices, int numVertices,
-                        bool _flipAxis);
-        [DllImport("tinygltf")]
-        static extern void tinygltfAddLineLoop(IntPtr instance,
-                String name,
-                String materialName,
-                float[] vertices, int numVertices,
-                bool _flipAxis);
-        IntPtr instance;
         WebSocket socket = null;
         Debouncer debouncer = new Debouncer(TimeSpan.FromMilliseconds(200));
 
@@ -108,7 +86,7 @@ namespace MNML
             var geometries = new List<IGH_Goo>();
             var objectNames = new List<String>();
             var materialNames = new List<String>();
-            string payloadString = "";
+            string payloadString = null;
             var flip = true;
             String path = "";
             var resoltuionFactor = 0.2;
@@ -128,98 +106,175 @@ namespace MNML
                 resoltuionFactor = tolerance;
             }
 
+
+
             Action action = () =>
             {
+                var _model = SharpGLTF.Schema2.ModelRoot.CreateModel();
+                var _scene = _model.UseScene(0);
+                var names = new List<String>();
+                var points = new List<float>();
+                var pointName = "Point";
 
-                try
+                for (int j = 0; j < geometries.Count; j++)
                 {
-
-                    instance = tinygltfCreateModel();
-
-                    var names = new List<String>();
-                    var points = new List<float>();
-                    var pointName = "Point";
-
-                    for (int j = 0; j < geometries.Count; j++)
+                    var name = objectNames.Count > j ? objectNames[j] : ("object-" + j);
+                    names.Add(name);
+                    if (geometries[j] is GH_Mesh)
                     {
-                        var name = objectNames.Count > j ? objectNames[j] : ("object-" + j);
-                        names.Add(name);
+                        var mesh = (geometries[j] as GH_Mesh).Value;
+                        var materialName = materialNames.Count > j ? materialNames[j] : "Default";
 
-                        if (geometries[j] is GH_Mesh)
+                        mesh.Faces.ConvertQuadsToTriangles();
+                        mesh.Normals.ComputeNormals();
+
+                        var uvs = mesh.TextureCoordinates.ToFloatArray();
+                        var normals = mesh.Normals.ToFloatArray();
+                        var faces = mesh.Faces.ToIntArray(true);
+
+                        var _node = _scene.CreateNode(name);
+                        var _mesh = _model.CreateMesh();
+                        var _mat = _model.CreateMaterial(materialName);
+                        var _accessors = new List<Accessor>();
+                        var _bufferComponents = new List<int> { 1, 3, 2, 3 };
+                        var _bufferDimensionTypes = new List<DimensionType> { DimensionType.SCALAR, DimensionType.VEC3, DimensionType.VEC2, DimensionType.VEC3 };
+                        var _bufferCount = new List<int> { mesh.Faces.TriangleCount * 3, mesh.Vertices.Count, mesh.TextureCoordinates.Count, mesh.Normals.Count };
+                        var _numberOfBytes = new List<int> { sizeof(int), sizeof(float), sizeof(float), sizeof(float) };
+
+                        for (var i = 0; i < 4; i++)
                         {
-                            var mesh = (geometries[j] as GH_Mesh).Value;
-                            var materialName = materialNames.Count > j ? materialNames[j] : "Default";
-                            mesh.Faces.ConvertQuadsToTriangles();
-                            mesh.Normals.ComputeNormals();
-
-                            var uvs = mesh.TextureCoordinates.ToFloatArray();
-                            var normals = mesh.Normals.ToFloatArray();
-                            var faces = mesh.Faces.ToIntArray(true);
-                            tinygltfAddMesh(instance, name,
-                                materialName,
-                                mesh.Vertices.ToFloatArray(), mesh.Vertices.Count * 3,
-                                normals, normals.Length,
-                                uvs, uvs.Length,
-                                faces, faces.Length, flip);
-                        }
-                        else if (geometries[j] is GH_Curve)
-                        {
-                            var curve = (geometries[j] as GH_Curve).Value;
-
-                            var length = curve.GetLength();
-                            var minimumLength = length * tolerance * 100.0 * resoltuionFactor;
-                            var maximumLength = length;
-                            var polyline = curve.ToPolyline(tolerance, angleTolerance, minimumLength, maximumLength);
-                            var vertices = new List<float>();
-                            var materialName = materialNames.Count > j ? materialNames[j] : "Default";
-
-                            for (var i = 0; i < polyline.PointCount; i++)
+                            var _itemCount = _bufferCount[i];
+                            var _accessor = _model.CreateAccessor();
+                            var count = _itemCount * _numberOfBytes[i] * _bufferComponents[i];
+                            var bytes = new byte[count];
+                            switch (i)
                             {
-                                var p = polyline.Point(i);
-                                vertices.Add((float)p.X);
-                                vertices.Add((float)p.Y);
-                                vertices.Add((float)p.Z);
+                                case 0: System.Buffer.BlockCopy(faces, 0, bytes, 0, count); break;
+                                case 1: System.Buffer.BlockCopy(mesh.Vertices.ToFloatArray(), 0, bytes, 0, count); break;
+                                case 2: System.Buffer.BlockCopy(uvs, 0, bytes, 0, count); break;
+                                case 3: System.Buffer.BlockCopy(normals, 0, bytes, 0, count); break;
                             }
-
-                            if (curve.IsClosed)
+                            BYTES content = new ArraySegment<byte>(bytes, 0, count);
+                            var _bufferView = _model.UseBufferView(content);
+                            var _bufferDimensionType = _bufferDimensionTypes[i];
+                            if (i == 0)
                             {
-                                tinygltfAddLineLoop(instance, name, materialName, vertices.ToArray(), vertices.Count, flip);
-                            } else
-                            {
-                                tinygltfAddLine(instance, name, materialName, vertices.ToArray(), vertices.Count, flip);
+                                _accessor.SetIndexData(_bufferView, 0, _itemCount, IndexEncodingType.UNSIGNED_INT);
                             }
+                            else
+                            {
+                                _accessor.SetVertexData(_bufferView, 0, _itemCount, _bufferDimensionType);
 
-                        } else if (geometries[j] is GH_Point)
-                        {
-                            pointName = name;
-                            var p = (geometries[j] as GH_Point).Value;
-                            points.Add((float)p.X);
-                            points.Add((float)p.Y);
-                            points.Add((float)p.Z);
-
+                            }
+                            _accessors.Add(_accessor);
                         }
-                    }
-                    if (points.Count > 0)
-                    {
-                        tinygltfAddPoints(instance, pointName, "Point", points.ToArray(), points.Count, flip);
-                    }
 
-                    tinygltfSave(instance, path, true, false, IsEmbedBuffer, IsPrettyPrint, IsWriteBinary);
-
-                    if (socket != null)
-                    {
-                        socket.Send(payloadString);
+                        var _primitive = _mesh.CreatePrimitive();
+                        _primitive.SetIndexAccessor(_accessors[0]);
+                        _primitive.SetVertexAccessor("POSITION", _accessors[1]);
+                        _primitive.SetVertexAccessor("TEXCOORD_0", _accessors[2]);
+                        _primitive.SetVertexAccessor("NORMAL", _accessors[3]);
+                        _primitive.DrawPrimitiveType = PrimitiveType.TRIANGLES;
+                        _node.Mesh = _mesh;
                     }
-                } catch (Exception e)
+                    else if (geometries[j] is GH_Curve)
+                    {
+                        var curve = (geometries[j] as GH_Curve).Value;
+
+                        var length = curve.GetLength();
+                        var minimumLength = length * tolerance * 100.0 * resoltuionFactor;
+                        var maximumLength = length;
+                        var polyline = curve.ToPolyline(tolerance, angleTolerance, minimumLength, maximumLength);
+                        var vertices = new List<float>();
+                        var materialName = materialNames.Count > j ? materialNames[j] : "Default";
+                        for (var i = 0; i < polyline.PointCount; i++)
+                        {
+                            var p = polyline.Point(i);
+                            vertices.Add((float)p.X);
+                            vertices.Add((float)p.Y);
+                            vertices.Add((float)p.Z);
+                        }
+
+                        var _node = _scene.CreateNode(name);
+                        var _mesh = _model.CreateMesh();
+                        var _mat = _model.CreateMaterial(materialName);
+                        var _accessors = new List<Accessor>();
+                        var _bufferComponents = new List<int> { 3 };
+                        var _bufferDimensionTypes = new List<DimensionType> { DimensionType.VEC3 };
+                        var _bufferCount = new List<int> { vertices.Count / 3 };
+                        var _numberOfBytes = new List<int> { sizeof(float) };
+                        var _itemCount = _bufferCount[0];
+                        var _accessor = _model.CreateAccessor();
+                        var count = _itemCount * _numberOfBytes[0] * _bufferComponents[0];
+                        var bytes = new byte[count];
+                        System.Buffer.BlockCopy(vertices.ToArray(), 0, bytes, 0, count);
+                        BYTES content = new ArraySegment<byte>(bytes, 0, count);
+                        var _bufferView = _model.UseBufferView(content);
+                        var _bufferDimensionType = _bufferDimensionTypes[0];
+                        _accessor.SetVertexData(_bufferView, 0, _itemCount, _bufferDimensionType);
+                        _accessors.Add(_accessor);
+                        var _primitive = _mesh.CreatePrimitive();
+                        _primitive.SetVertexAccessor("POSITION", _accessors[0]);
+                        _primitive.DrawPrimitiveType = curve.IsClosed ? PrimitiveType.LINE_LOOP : PrimitiveType.LINE_STRIP;
+                        _node.Mesh = _mesh;
+                    }
+                    else if (geometries[j] is GH_Point)
+                    {
+                        pointName = name;
+                        var p = (geometries[j] as GH_Point).Value;
+                        points.Add((float)p.X);
+                        points.Add((float)p.Y);
+                        points.Add((float)p.Z);
+                    }
+                }
+                if (points.Count > 0)
                 {
-                    Console.WriteLine(e.Message);
+                    var _node = _scene.CreateNode(pointName);
+                    var _mesh = _model.CreateMesh();
+                    var _mat = _model.CreateMaterial("Point");
+                    var _accessors = new List<Accessor>();
+                    var _bufferComponents = new List<int> { 3 };
+                    var _bufferDimensionTypes = new List<DimensionType> { DimensionType.VEC3 };
+                    var _bufferCount = new List<int> { points.Count / 3 };
+                    var _numberOfBytes = new List<int> { sizeof(float) };
+                    var _itemCount = _bufferCount[0];
+                    var _accessor = _model.CreateAccessor();
+                    var count = _itemCount * _numberOfBytes[0] * _bufferComponents[0];
+                    var bytes = new byte[count];
+                    System.Buffer.BlockCopy(points.ToArray(), 0, bytes, 0, count);
+                    BYTES content = new ArraySegment<byte>(bytes, 0, count);
+                    var _bufferView = _model.UseBufferView(content);
+                    var _bufferDimensionType = _bufferDimensionTypes[0];
+                    _accessor.SetVertexData(_bufferView, 0, _itemCount, _bufferDimensionType);
+                    _accessors.Add(_accessor);
+                    var _primitive = _mesh.CreatePrimitive();
+                    _primitive.SetVertexAccessor("POSITION", _accessors[0]);
+                    _primitive.DrawPrimitiveType = PrimitiveType.POINTS;
+                    _node.Mesh = _mesh;
+                }
+
+                var _writeSetting = new WriteSettings();
+                _writeSetting.MergeBuffers = true;
+
+                using (var stream = File.Create(path))
+                {
+                    _model.WriteGLB(stream, _writeSetting);
+                }
+
+                if (socket != null)
+                {
+                    if (payloadString == null)
+                    {
+                        payloadString = "{\"action\": \"broadcast\", \"data\": \"" + path + "\"}";
+                    }
+                    socket.Send(payloadString);
                 }
             };
-
-            action();
+            //action();
             // Finally assign the spiral to the output parameter.
             debouncer.Debounce(action);
         }
+
 
 
         /// <summary>
@@ -230,6 +285,7 @@ namespace MNML
         /// </summary>
         public override GH_Exposure Exposure => GH_Exposure.primary;
 
+        /*
         public override void AppendAdditionalMenuItems(ToolStripDropDown menu)
         {
             {
@@ -263,23 +319,21 @@ namespace MNML
                 case "Write Binary": IsWriteBinary = !IsWriteBinary; break;
 
             }
-
-
-        }
+        }*/
 
         /// <summary>
         /// Provides an Icon for every component that will be visible in the User Interface.
         /// Icons need to be 24x24 pixels.
         /// </summary>
-        protected override System.Drawing.Bitmap Icon
-        {
-            get
-            {
-                // You can add image files to your project resources and access them like this:
-                //return Resources.IconForThisComponent;
-                return null;
-            }
-        }
+        //protected override System.Drawing.Bitmap Icon
+        //{
+        //    get
+        //    {
+        //        // You can add image files to your project resources and access them like this:
+        //        //return Resources.IconForThisComponent;
+        //        return null;
+        //    }
+        //}
 
         /// <summary>
         /// Each component must have a unique Guid to identify it. 

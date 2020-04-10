@@ -1,17 +1,18 @@
 ﻿<Project Sdk="Microsoft.NET.Sdk">
 	
   <PropertyGroup>
-    <TargetFramework>net45</TargetFramework>
+    <TargetFramework>netstandard2.0</TargetFramework>
     <RootNamespace>GhGLTF</RootNamespace>
-    <Version>1.0.3</Version>
+    <Version>1.1.0</Version>
     <Title>GhGLTFExporter</Title>
     <Description>Description of GhGLTFExporter</Description>
-    <ReleaseVersion>1.0.3</ReleaseVersion>
+    <ReleaseVersion>1.1.0</ReleaseVersion>
   </PropertyGroup>
   
   <ItemGroup>
-    <PackageReference Include="Newtonsoft.Json" Version="12.0.3" />
     <PackageReference Include="WebSocketSharp" Version="1.0.3-rc11" />
+    <PackageReference Include="SharpGLTF.Core" Version="1.0.0-alpha0016" />
+    <PackageReference Include="SharpGLTF.Toolkit" Version="1.0.0-alpha0016" />
   </ItemGroup>
   
   <ItemGroup>
@@ -32,33 +33,4 @@
       <Private>False</Private>
     </Reference>
   </ItemGroup>
-  <ItemGroup>
-    <None Remove="libs\.DS_Store" />
-    <None Remove="libs\macos\.DS_Store" />
-    <None Remove="libs\macos\libtinygltf.dylib" />
-    <None Remove="libs\win\.DS_Store" />
-  </ItemGroup>
-  <PropertyGroup>
-    
-  </PropertyGroup>
-  <PropertyGroup Condition=" '$(Configuration)|$(Platform)' == 'Debug|AnyCPU' ">
-    <CustomCommands>
-      <CustomCommands>
-        <Command>
-          <type>AfterBuild</type>
-          <command>cp ${ProjectDir}/libs/macos/libtinygltf.dylib ${TargetDir}</command>
-        </Command>
-      </CustomCommands>
-    </CustomCommands>
-  </PropertyGroup>
-  <PropertyGroup Condition=" '$(Configuration)|$(Platform)' == 'Release|AnyCPU' ">
-    <CustomCommands>
-      <CustomCommands>
-        <Command>
-          <type>AfterBuild</type>
-          <command>cp ${ProjectDir}/libs/macos/libtinygltf.dylib ${TargetDir}</command>
-        </Command>
-      </CustomCommands>
-    </CustomCommands>
-  </PropertyGroup>
 </Project>
