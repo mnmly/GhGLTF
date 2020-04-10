@@ -1,12 +1,5 @@
-build:
-	cd ./GhGLTF/bin/Release/net45 && /Applications/RhinoWIP.app/Contents/Resources/bin/yak build
-
-publish:
-	/Applications/RhinoWIP.app/Contents/Resources/bin/yak push $(target)
-
-
 VERSION := $(shell xmllint --xpath "//Project/PropertyGroup/Version/text()" GhGLTF/GhGLTF.csproj)
-DIR = GhGLTF/bin/Release/net45
+DIR = GhGLTF/bin/Release/netstandard2.0
 
 manifest:
 	sed -i -- 's/[[:digit:]]\.[[:digit:]]\.[[:digit:]]/$(VERSION)/g' $(DIR)/manifest.yml
