@@ -131,81 +131,88 @@ namespace MNML
             Action action = () =>
             {
 
-                instance = tinygltfCreateModel();
-
-                var names = new List<String>();
-                var points = new List<float>();
-                var pointName = "Point";
-
-                for (int j = 0; j < geometries.Count; j++)
+                try
                 {
-                    var name = objectNames.Count > j ? objectNames[j] : ("object-" + j);
-                    names.Add(name);
 
-                    if (geometries[j] is GH_Mesh)
+                    instance = tinygltfCreateModel();
+
+                    var names = new List<String>();
+                    var points = new List<float>();
+                    var pointName = "Point";
+
+                    for (int j = 0; j < geometries.Count; j++)
                     {
-                        var mesh = (geometries[j] as GH_Mesh).Value;
-                        var materialName = materialNames.Count > j ? materialNames[j] : "Default";
-                        mesh.Faces.ConvertQuadsToTriangles();
-                        mesh.Normals.ComputeNormals();
+                        var name = objectNames.Count > j ? objectNames[j] : ("object-" + j);
+                        names.Add(name);
 
-                        var uvs = mesh.TextureCoordinates.ToFloatArray();
-                        var normals = mesh.Normals.ToFloatArray();
-                        var faces = mesh.Faces.ToIntArray(true);
-                        tinygltfAddMesh(instance, name,
-                            materialName,
-                            mesh.Vertices.ToFloatArray(), mesh.Vertices.Count * 3,
-                            normals, normals.Length,
-                            uvs, uvs.Length,
-                            faces, faces.Length, flip);
-                    }
-                    else if (geometries[j] is GH_Curve)
-                    {
-                        var curve = (geometries[j] as GH_Curve).Value;
-                        
-                        var length = curve.GetLength();
-                        var minimumLength = length * tolerance * 100.0 * resoltuionFactor;
-                        var maximumLength = length;
-                        var polyline = curve.ToPolyline(tolerance, angleTolerance, minimumLength, maximumLength);
-                        var vertices = new List<float>();
-                        var materialName = materialNames.Count > j ? materialNames[j] : "Default";
-
-                        for (var i = 0; i < polyline.PointCount; i++)
+                        if (geometries[j] is GH_Mesh)
                         {
-                            var p = polyline.Point(i);
-                            vertices.Add((float)p.X);
-                            vertices.Add((float)p.Y);
-                            vertices.Add((float)p.Z);
+                            var mesh = (geometries[j] as GH_Mesh).Value;
+                            var materialName = materialNames.Count > j ? materialNames[j] : "Default";
+                            mesh.Faces.ConvertQuadsToTriangles();
+                            mesh.Normals.ComputeNormals();
+
+                            var uvs = mesh.TextureCoordinates.ToFloatArray();
+                            var normals = mesh.Normals.ToFloatArray();
+                            var faces = mesh.Faces.ToIntArray(true);
+                            tinygltfAddMesh(instance, name,
+                                materialName,
+                                mesh.Vertices.ToFloatArray(), mesh.Vertices.Count * 3,
+                                normals, normals.Length,
+                                uvs, uvs.Length,
+                                faces, faces.Length, flip);
                         }
+                        else if (geometries[j] is GH_Curve)
+                        {
+                            var curve = (geometries[j] as GH_Curve).Value;
 
-                        if (curve.IsClosed)
+                            var length = curve.GetLength();
+                            var minimumLength = length * tolerance * 100.0 * resoltuionFactor;
+                            var maximumLength = length;
+                            var polyline = curve.ToPolyline(tolerance, angleTolerance, minimumLength, maximumLength);
+                            var vertices = new List<float>();
+                            var materialName = materialNames.Count > j ? materialNames[j] : "Default";
+
+                            for (var i = 0; i < polyline.PointCount; i++)
+                            {
+                                var p = polyline.Point(i);
+                                vertices.Add((float)p.X);
+                                vertices.Add((float)p.Y);
+                                vertices.Add((float)p.Z);
+                            }
+
+                            if (curve.IsClosed)
+                            {
+                                tinygltfAddLineLoop(instance, name, materialName, vertices.ToArray(), vertices.Count, flip);
+                            } else
+                            {
+                                tinygltfAddLine(instance, name, materialName, vertices.ToArray(), vertices.Count, flip);
+                            }
+
+                        } else if (geometries[j] is GH_Point)
                         {
-                            tinygltfAddLineLoop(instance, name, materialName, vertices.ToArray(), vertices.Count, flip);
-                        } else
-                        {
-                            tinygltfAddLine(instance, name, materialName, vertices.ToArray(), vertices.Count, flip);
+                            pointName = name;
+                            var p = (geometries[j] as GH_Point).Value;
+                            points.Add((float)p.X);
+                            points.Add((float)p.Y);
+                            points.Add((float)p.Z);
+
                         }
-
-                    } else if (geometries[j] is GH_Point)
-                    {
-                        pointName = name;
-                        var p = (geometries[j] as GH_Point).Value;
-                        points.Add((float)p.X);
-                        points.Add((float)p.Y);
-                        points.Add((float)p.Z);
-
                     }
-                }
-                if (points.Count > 0)
-                {
-                    tinygltfAddPoints(instance, pointName, "Point", points.ToArray(), points.Count, flip);
-                }
+                    if (points.Count > 0)
+                    {
+                        tinygltfAddPoints(instance, pointName, "Point", points.ToArray(), points.Count, flip);
+                    }
 
-                tinygltfSave(instance, path, true, false, IsEmbedBuffer, IsPrettyPrint, IsWriteBinary);
+                    tinygltfSave(instance, path, true, false, IsEmbedBuffer, IsPrettyPrint, IsWriteBinary);
 
-                if (socket != null)
+                    if (socket != null)
+                    {
+                        socket.Send(payloadString);
+                    }
+                } catch (Exception e)
                 {
-                    socket.Send(payloadString);
+                    Console.WriteLine(e.Message);
                 }
             };
 
